@@ -175,6 +175,18 @@ pub const scause = packed struct {
             },
         });
 
+    pub fn getCode(self: @This()) Code {
+        return if (self.interrupt)
+            .{ .interrupt = @enumFromInt(self.code) }
+        else
+            .{ .exception = @enumFromInt(self.code) };
+    }
+
+    pub const Code = union {
+        interrupt: Interrupt,
+        exception: Exception,
+    };
+
     pub const Interrupt = enum(OneLessBitThanUsize) {
         @"Supervisor software interrupt" = 1,
         @"Supervisor timer interrupt" = 5,
