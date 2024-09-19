@@ -30,9 +30,9 @@ const Register = enum {
 comptime {
     for (std.meta.fields(Register)) |field| {
         if (@hasDecl(csr, field.name)) {
-            const s = @field(csr, field.name);
+            const S = @field(csr, field.name);
             // All the following packed structs must be 64bit.
-            std.debug.assert(@bitSizeOf(s) == 64);
+            std.debug.assert(@bitSizeOf(S) == 64);
         }
     }
 }
@@ -249,15 +249,19 @@ pub const raw = struct {
     }
 };
 
-pub fn read(comptime tag: Register) @field(csr, @tagName(tag)) {
+fn RegisterType(comptime tag: Register) type {
+    return @field(csr, @tagName(tag));
+}
+
+pub fn read(comptime tag: Register) RegisterType(tag) {
     return @bitCast(raw.read(tag));
 }
 
-pub fn set(comptime tag: Register, register: @field(csr, @tagName(tag))) void {
+pub fn set(comptime tag: Register, register: RegisterType(tag)) void {
     raw.set(tag, @bitCast(register));
 }
 
-pub fn clear(comptime tag: Register, register: @field(csr, @tagName(tag))) void {
+pub fn clear(comptime tag: Register, register: RegisterType(tag)) void {
     raw.clear(tag, @bitCast(register));
 }
 
