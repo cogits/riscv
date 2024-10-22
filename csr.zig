@@ -182,7 +182,7 @@ pub const scause = packed struct {
             .{ .exception = @enumFromInt(self.code) };
     }
 
-    pub const Code = union {
+    pub const Code = union(enum) {
         interrupt: Interrupt,
         exception: Exception,
     };
@@ -214,6 +214,13 @@ pub const scause = packed struct {
 
         _,
     };
+
+    pub fn format(cause: scause, comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        switch (cause.getCode()) {
+            .interrupt => |value| try w.print("interrupt: {s}", .{@tagName(value)}),
+            .exception => |value| try w.print("exception: {s}", .{@tagName(value)}),
+        }
+    }
 };
 
 pub const raw = struct {
