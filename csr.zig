@@ -160,20 +160,11 @@ pub const scause = packed struct {
     code: OneLessBitThanUsize = 0,
     interrupt: bool = false,
 
-    const OneLessBitThanUsize = if (builtin.zig_version.order(update_builtin_type_fields_version) == .lt)
-        @Type(.{
-            .Int = .{
-                .bits = @typeInfo(usize).Int.bits - 1,
-                .signedness = .unsigned,
-            },
-        })
+    const OneLessBitThanUsize = std.meta.Int(.unsigned, usize_bits - 1);
+    const usize_bits = if (builtin.zig_version.order(update_builtin_type_fields_version) == .lt)
+        @typeInfo(usize).Int.bits
     else
-        @Type(.{
-            .int = .{
-                .bits = @typeInfo(usize).int.bits - 1,
-                .signedness = .unsigned,
-            },
-        });
+        @typeInfo(usize).int.bits;
 
     pub fn getCode(self: @This()) Code {
         return if (self.interrupt)
@@ -216,9 +207,17 @@ pub const scause = packed struct {
     };
 
     pub fn format(cause: scause, comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        // The enum is non-exhaustive. We can't use @tagName here.
         switch (cause.getCode()) {
-            .interrupt => |value| try w.print("interrupt: {s}", .{@tagName(value)}),
-            .exception => |value| try w.print("exception: {s}", .{@tagName(value)}),
+            inline else => |value| {
+                const T = @TypeOf(value);
+                inline for (std.meta.fields(T)) |field| {
+                    if (field.value == @intFromEnum(value)) {
+                        try w.print("{s}", .{field.name});
+                        break;
+                    }
+                } else try w.print("{s}: {d}", .{ @typeName(T), @intFromEnum(value) });
+            },
         }
     }
 };
