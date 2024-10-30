@@ -13,6 +13,7 @@ const Register = enum {
     medeleg,
     mideleg,
     mret,
+    mcause,
 
     sstatus,
     satp,
@@ -71,6 +72,9 @@ pub const mstatus = packed struct {
         }
     };
 };
+
+/// Machine cause register
+pub const mcause = xcause;
 
 /// Supervisor Status Register
 pub const sstatus = packed struct {
@@ -156,17 +160,13 @@ pub const satp = packed struct {
 };
 
 /// Supervisor cause register
-pub const scause = packed struct {
-    code: OneLessBitThanUsize = 0,
+pub const scause = xcause;
+
+const xcause = packed struct {
+    code: XlenMinus(1) = 0,
     interrupt: bool = false,
 
-    const OneLessBitThanUsize = std.meta.Int(.unsigned, usize_bits - 1);
-    const usize_bits = if (builtin.zig_version.order(update_builtin_type_fields_version) == .lt)
-        @typeInfo(usize).Int.bits
-    else
-        @typeInfo(usize).int.bits;
-
-    pub fn getCode(self: @This()) Code {
+    pub fn getCode(self: xcause) Code {
         return if (self.interrupt)
             .{ .interrupt = @enumFromInt(self.code) }
         else
@@ -178,15 +178,23 @@ pub const scause = packed struct {
         exception: Exception,
     };
 
-    pub const Interrupt = enum(OneLessBitThanUsize) {
+    pub const Interrupt = enum(XlenMinus(1)) {
+        @"User software interrupt" = 0,
         @"Supervisor software interrupt" = 1,
+        @"Machine software interrupt" = 3,
+
+        @"User timer interrupt" = 4,
         @"Supervisor timer interrupt" = 5,
+        @"Machine timer interrupt" = 7,
+
+        @"User external interrupt" = 8,
         @"Supervisor external interrupt" = 9,
+        @"Machine external interrupt" = 11,
 
         _,
     };
 
-    pub const Exception = enum(OneLessBitThanUsize) {
+    pub const Exception = enum(XlenMinus(1)) {
         @"Instruction address misaligned" = 0,
         @"Instruction address fault" = 1,
         @"Illegal instruction" = 2,
@@ -198,6 +206,7 @@ pub const scause = packed struct {
         @"Environment call from U-mode" = 8,
         @"Environment call from S-mode" = 9,
 
+        @"Environment call from M-mode" = 11,
         @"Instruction page fault" = 12,
         @"Load page fault" = 13,
 
@@ -206,17 +215,20 @@ pub const scause = packed struct {
         _,
     };
 
-    pub fn format(cause: scause, comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
-        // The enum is non-exhaustive. We can't use @tagName here.
+    pub fn format(cause: xcause, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (cause.getCode()) {
             inline else => |value| {
+                // The enum is non-exhaustive. We can't use @tagName here.
                 const T = @TypeOf(value);
                 inline for (std.meta.fields(T)) |field| {
                     if (field.value == @intFromEnum(value)) {
-                        try w.print("{s}", .{field.name});
+                        try writer.print("{s}", .{field.name});
                         break;
                     }
-                } else try w.print("{s}: {d}", .{ @typeName(T), @intFromEnum(value) });
+                } else try writer.print("{s}: {d}", .{
+                    if (T == Interrupt) "Interrupt" else "Exception",
+                    @intFromEnum(value),
+                });
             },
         }
     }
@@ -271,6 +283,6 @@ pub fn clear(comptime tag: Register, register: RegisterType(tag)) void {
     raw.clear(tag, @bitCast(register));
 }
 
-const builtin = @import("builtin");
-// ----------- List of Zig versions that introduced breaking changes -----------
-const update_builtin_type_fields_version = std.SemanticVersion.parse("0.14.0-dev.1346+31fef6f11") catch unreachable;
+fn XlenMinus(n: u16) type {
+    return std.meta.Int(.unsigned, @bitSizeOf(usize) - n);
+}
