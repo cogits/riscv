@@ -217,19 +217,8 @@ const xcause = packed struct {
 
     pub fn format(cause: xcause, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (cause.getCode()) {
-            inline else => |value| {
-                // The enum is non-exhaustive. We can't use @tagName here.
-                const T = @TypeOf(value);
-                inline for (std.meta.fields(T)) |field| {
-                    if (field.value == @intFromEnum(value)) {
-                        try writer.print("{s}", .{field.name});
-                        break;
-                    }
-                } else try writer.print("{s}: {d}", .{
-                    if (T == Interrupt) "Interrupt" else "Exception",
-                    @intFromEnum(value),
-                });
-            },
+            // If the non-exhaustive enum value does not map to a name, it invokes safety-checked Undefined Behavior.
+            inline else => |value| try writer.print("{s}", .{@tagName(value)}),
         }
     }
 };
