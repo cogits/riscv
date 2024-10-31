@@ -32,8 +32,8 @@ comptime {
     for (std.meta.fields(Register)) |field| {
         if (@hasDecl(csr, field.name)) {
             const S = @field(csr, field.name);
-            // All the following packed structs must be 64bit.
-            std.debug.assert(@bitSizeOf(S) == 64);
+            // All the following packed structs must be the same size as usize.
+            std.debug.assert(@bitSizeOf(S) == @bitSizeOf(usize));
         }
     }
 }
@@ -54,7 +54,7 @@ pub const mstatus = packed struct {
     vs: u2 = 0,
     mpp: Mpp = .user,
 
-    _: u51 = 0,
+    _: XlenMinus(13) = 0,
 
     pub const Mpp = enum(u2) {
         user = 0b00,
@@ -88,7 +88,7 @@ pub const sstatus = packed struct {
     @"7": u1 = 0,
     spp: bool = false,
 
-    _: u55 = 0,
+    _: XlenMinus(9) = 0,
 };
 
 /// Machine-mode Interrupt Enable
@@ -111,7 +111,7 @@ pub const mie = packed struct {
     @"10": u1 = 0,
     meie: bool = false,
 
-    _: u52 = 0,
+    _: XlenMinus(12) = 0,
 };
 
 /// Supervisor interrupt-pending register
@@ -127,7 +127,7 @@ pub const sip = packed struct {
     ueip: bool = false,
     seip: bool = false,
 
-    _: u54 = 0,
+    _: XlenMinus(10) = 0,
 };
 
 /// Supervisor Interrupt Enable
@@ -141,11 +141,26 @@ pub const sie = packed struct {
     @"6-8": u3 = 0,
     seie: bool = false,
 
-    _: u54 = 0,
+    _: XlenMinus(10) = 0,
 };
 
 /// Supervisor Address Translation and Protection Register
-pub const satp = packed struct {
+pub const satp = if (@bitSizeOf(usize) == 32) satp32 else satp64;
+
+const satp32 = packed struct {
+    /// Physical Page Number
+    ppn: u22 = 0,
+
+    /// Address Space Identifier (optional)
+    asid: u9 = 0,
+
+    mode: enum(u1) {
+        none = 0,
+        sv32 = 1,
+    } = .none,
+};
+
+const satp64 = packed struct {
     /// Physical Page Number
     ppn: u44 = 0,
 
