@@ -14,6 +14,8 @@ const Register = enum {
     mideleg,
     mret,
     mcause,
+    mtime,
+    time,
 
     sstatus,
     satp,
