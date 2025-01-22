@@ -7,5 +7,6 @@
         "build.zig.zon",
         "csr.zig",
         "gpr.zig",
+        "sbi.zig",
     },
 }
