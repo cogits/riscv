@@ -30,18 +30,8 @@ const Register = enum {
     pmpcfg0,
 };
 
-comptime {
-    for (std.meta.fields(Register)) |field| {
-        if (@hasDecl(csr, field.name)) {
-            const S = @field(csr, field.name);
-            // All the following packed structs must be the same size as usize.
-            std.debug.assert(@bitSizeOf(S) == @bitSizeOf(usize));
-        }
-    }
-}
-
 /// Machine Status Register
-pub const mstatus = packed struct {
+pub const mstatus = packed struct(usize) {
     @"0": u1 = 0,
     sie: bool = false,
 
@@ -79,7 +69,7 @@ pub const mstatus = packed struct {
 pub const mcause = xcause;
 
 /// Supervisor Status Register
-pub const sstatus = packed struct {
+pub const sstatus = packed struct(usize) {
     @"0": u1 = 0,
     sie: bool = false,
 
@@ -94,7 +84,7 @@ pub const sstatus = packed struct {
 };
 
 /// Machine-mode Interrupt Enable
-pub const mie = packed struct {
+pub const mie = packed struct(usize) {
     @"0": u1 = 0,
     ssie: bool = false,
 
@@ -117,7 +107,7 @@ pub const mie = packed struct {
 };
 
 /// Supervisor interrupt-pending register
-pub const sip = packed struct {
+pub const sip = packed struct(usize) {
     usip: bool = false,
     ssip: bool = false,
 
@@ -133,7 +123,7 @@ pub const sip = packed struct {
 };
 
 /// Supervisor Interrupt Enable
-pub const sie = packed struct {
+pub const sie = packed struct(usize) {
     @"0": u1 = 0,
     ssie: bool = false,
 
@@ -149,7 +139,7 @@ pub const sie = packed struct {
 /// Supervisor Address Translation and Protection Register
 pub const satp = if (@bitSizeOf(usize) == 32) satp32 else satp64;
 
-const satp32 = packed struct {
+const satp32 = packed struct(u32) {
     /// Physical Page Number
     ppn: u22 = 0,
 
@@ -162,7 +152,7 @@ const satp32 = packed struct {
     } = .none,
 };
 
-const satp64 = packed struct {
+const satp64 = packed struct(u64) {
     /// Physical Page Number
     ppn: u44 = 0,
 
@@ -179,7 +169,7 @@ const satp64 = packed struct {
 /// Supervisor cause register
 pub const scause = xcause;
 
-const xcause = packed struct {
+const xcause = packed struct(usize) {
     code: XlenMinus(1) = 0,
     interrupt: bool = false,
 
