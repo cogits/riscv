@@ -3,31 +3,69 @@ const csr = @This();
 const std = @import("std");
 
 const Register = enum {
+    /// Hart ID
     mhartid,
-    mscratch,
+    /// Machine Status
     mstatus,
-    mepc,
+    /// Machine Trap Vector Base Address
     mtvec,
-    mip,
-    mie,
+    /// Machine Exception Delegation
     medeleg,
+    /// Machine Interrupt Delegation
     mideleg,
-    mret,
+    /// Machine Integerrupt Pending
+    mip,
+    /// Machine Interrupt Enable
+    mie,
+    /// Machine Counter Enable
+    mcounteren,
+    /// Machine Scratch
+    mscratch,
+    /// Machine Exception Program Counter
+    mepc,
+    /// Machine Cause
     mcause,
-    mtime,
+    /// Machine Trap Value
+    mtval,
+    /// Machine Environment Configuration
+    menvcfg,
+    /// read-only shadow of the memory-mapped mtime register
     time,
-
-    sstatus,
-    satp,
-    sie,
-    sip,
-    scause,
-    stvec,
-    stval,
-    sepc,
-
-    pmpaddr0,
+    /// Machine Timer
+    mtime,
+    /// Machine Timer Compare
+    mtimecmp,
+    /// Machine Trap Return
+    mret,
+    /// PMP configuration registers
     pmpcfg0,
+    /// PMP address registers
+    pmpaddr0,
+
+    /// Supervisor Status
+    sstatus,
+    /// Supervisor Trap Vector Base Address
+    stvec,
+    /// Supervisor Interrupt Pending
+    sip,
+    /// Supervisor Interrupt Enable
+    sie,
+    /// Supervisor Couunter Enable
+    scounteren,
+    /// Supervisor Scratch
+    sscratch,
+    /// Supervisor Exception Program Counter
+    sepc,
+    /// Supervisor Cause
+    scause,
+    /// Supervisor Trap Value
+    stval,
+    /// Supervisor Environment Configuration
+    senvcfg,
+    /// Supervisor Address Translation and Protection
+    satp,
+    /// Supervisor Timer
+    stimecmp,
 };
 
 /// Machine Status Register
@@ -81,6 +119,31 @@ pub const sstatus = packed struct(usize) {
     spp: bool = false,
 
     _: XlenMinus(9) = 0,
+};
+
+pub const menvcfg = packed struct(u64) {
+    fiom: bool = false,
+    @"1-3": u3 = 0,
+
+    cbie: u2 = 0,
+    cbcfe: bool = false,
+    cbze: bool = false,
+
+    @"8-31": u24 = 0,
+    pmm: u2 = 0,
+
+    @"34-59": u26 = 0,
+    cde: bool = false,
+    adue: bool = false,
+    pbmte: bool = false,
+    stce: bool = false,
+};
+
+pub const mcounteren = packed struct(u32) {
+    cy: bool = false,
+    tm: bool = false,
+    ir: bool = false,
+    hpm: u29 = 0,
 };
 
 /// Machine-mode Interrupt Enable
@@ -231,31 +294,31 @@ const xcause = packed struct(usize) {
 };
 
 pub const raw = struct {
-    pub fn read(comptime register: Register) usize {
-        const name = @tagName(register);
+    pub fn read(comptime tag: Register) RegisterBits(tag) {
+        const name = @tagName(tag);
         return asm volatile ("csrr %[ret], " ++ name
-            : [ret] "=r" (-> usize),
+            : [ret] "=r" (-> RegisterBits(tag)),
         );
     }
 
-    pub fn write(comptime register: Register, value: usize) void {
-        const name = @tagName(register);
+    pub fn write(comptime tag: Register, value: RegisterBits(tag)) void {
+        const name = @tagName(tag);
         asm volatile ("csrw " ++ name ++ ", %[value]"
             :
             : [value] "r" (value),
         );
     }
 
-    pub fn set(comptime register: Register, mask: usize) void {
-        const name = @tagName(register);
+    pub fn set(comptime tag: Register, mask: RegisterBits(tag)) void {
+        const name = @tagName(tag);
         asm volatile ("csrs " ++ name ++ ", %[mask]"
             :
             : [mask] "r" (mask),
         );
     }
 
-    pub fn clear(comptime register: Register, mask: usize) void {
-        const name = @tagName(register);
+    pub fn clear(comptime tag: Register, mask: RegisterBits(tag)) void {
+        const name = @tagName(tag);
         asm volatile ("csrc " ++ name ++ ", %[mask]"
             :
             : [mask] "r" (mask),
@@ -265,6 +328,13 @@ pub const raw = struct {
 
 fn RegisterType(comptime tag: Register) type {
     return @field(csr, @tagName(tag));
+}
+
+fn RegisterBits(comptime tag: Register) type {
+    return if (@hasDecl(csr, @tagName(tag)))
+        std.meta.Int(.unsigned, @bitSizeOf(RegisterType(tag)))
+    else
+        usize;
 }
 
 pub fn read(comptime tag: Register) RegisterType(tag) {
