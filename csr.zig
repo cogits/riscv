@@ -1,8 +1,5 @@
-//! control and status register
-const csr = @This();
-const std = @import("std");
-
-const Register = enum {
+/// control and status register
+pub const csr = enum {
     /// Hart ID
     mhartid,
     /// Machine Status
@@ -66,6 +63,80 @@ const Register = enum {
     satp,
     /// Supervisor Timer
     stimecmp,
+
+    /// Reads the current value of the specified CSR.
+    /// Returns the value as the register's corresponding type.
+    pub fn read(comptime tag: csr) Type(tag) {
+        return @bitCast(raw.read(tag));
+    }
+
+    /// Writes a new value to the specified CSR.
+    /// Note: This overwrites the entire register contents.
+    pub fn write(comptime tag: csr, register: Type(tag)) void {
+        raw.write(tag, @bitCast(register));
+    }
+
+    /// Sets (ORs) bits in the CSR specified by the mask.
+    /// Only bits set to 1 in the mask will be set in the CSR.
+    pub fn set(comptime tag: csr, register: Type(tag)) void {
+        raw.set(tag, @bitCast(register));
+    }
+
+    /// Clears bits in the CSR specified by the mask.
+    /// Only bits set to 1 in the mask will be cleared in the CSR.
+    pub fn clear(comptime tag: csr, register: Type(tag)) void {
+        raw.clear(tag, @bitCast(register));
+    }
+
+    /// Direct CSR operations using raw integer values.
+    /// These bypass type safety and work directly with the underlying machine words.
+    pub const raw = struct {
+        pub fn read(comptime tag: csr) Int(tag) {
+            const name = @tagName(tag);
+            return asm volatile ("csrr %[ret], " ++ name
+                : [ret] "=r" (-> Int(tag)),
+            );
+        }
+
+        pub fn write(comptime tag: csr, value: Int(tag)) void {
+            const name = @tagName(tag);
+            asm volatile ("csrw " ++ name ++ ", %[value]"
+                :
+                : [value] "r" (value),
+            );
+        }
+
+        pub fn set(comptime tag: csr, mask: Int(tag)) void {
+            const name = @tagName(tag);
+            asm volatile ("csrs " ++ name ++ ", %[mask]"
+                :
+                : [mask] "r" (mask),
+            );
+        }
+
+        pub fn clear(comptime tag: csr, mask: Int(tag)) void {
+            const name = @tagName(tag);
+            asm volatile ("csrc " ++ name ++ ", %[mask]"
+                :
+                : [mask] "r" (mask),
+            );
+        }
+    };
+
+    /// Returns the type associated with a particular CSR.
+    /// This type is used for type-safe CSR operations.
+    pub fn Type(comptime tag: csr) type {
+        return @field(top, @tagName(tag));
+    }
+
+    /// Returns the appropriate unsigned integer type for raw CSR operations.
+    /// Uses the bit size of the CSR's type if defined, otherwise falls back to usize.
+    pub fn Int(comptime tag: csr) type {
+        return if (@hasDecl(top, @tagName(tag)))
+            std.meta.Int(.unsigned, @bitSizeOf(Type(tag)))
+        else
+            usize;
+    }
 };
 
 /// Machine Status Register
@@ -91,15 +162,9 @@ pub const mstatus = packed struct(usize) {
         supervisor = 0b01,
         hypervisor = 0b10,
         machine = 0b11,
-    };
 
-    pub const set = struct {
-        pub fn mpp(value: Mpp) void {
-            // reset to 0
-            clear(.mstatus, .{ .mpp = .machine });
-            // set mpp
-            csr.set(.mstatus, .{ .mpp = value });
-        }
+        /// Use this to CLEAR the field
+        pub const clear_mask: Mpp = .machine;
     };
 };
 
@@ -293,62 +358,9 @@ const xcause = packed struct(usize) {
     }
 };
 
-pub const raw = struct {
-    pub fn read(comptime tag: Register) RegisterBits(tag) {
-        const name = @tagName(tag);
-        return asm volatile ("csrr %[ret], " ++ name
-            : [ret] "=r" (-> RegisterBits(tag)),
-        );
-    }
-
-    pub fn write(comptime tag: Register, value: RegisterBits(tag)) void {
-        const name = @tagName(tag);
-        asm volatile ("csrw " ++ name ++ ", %[value]"
-            :
-            : [value] "r" (value),
-        );
-    }
-
-    pub fn set(comptime tag: Register, mask: RegisterBits(tag)) void {
-        const name = @tagName(tag);
-        asm volatile ("csrs " ++ name ++ ", %[mask]"
-            :
-            : [mask] "r" (mask),
-        );
-    }
-
-    pub fn clear(comptime tag: Register, mask: RegisterBits(tag)) void {
-        const name = @tagName(tag);
-        asm volatile ("csrc " ++ name ++ ", %[mask]"
-            :
-            : [mask] "r" (mask),
-        );
-    }
-};
-
-fn RegisterType(comptime tag: Register) type {
-    return @field(csr, @tagName(tag));
-}
-
-fn RegisterBits(comptime tag: Register) type {
-    return if (@hasDecl(csr, @tagName(tag)))
-        std.meta.Int(.unsigned, @bitSizeOf(RegisterType(tag)))
-    else
-        usize;
-}
-
-pub fn read(comptime tag: Register) RegisterType(tag) {
-    return @bitCast(raw.read(tag));
-}
-
-pub fn set(comptime tag: Register, register: RegisterType(tag)) void {
-    raw.set(tag, @bitCast(register));
-}
-
-pub fn clear(comptime tag: Register, register: RegisterType(tag)) void {
-    raw.clear(tag, @bitCast(register));
-}
-
 fn XlenMinus(n: u16) type {
     return std.meta.Int(.unsigned, @bitSizeOf(usize) - n);
 }
+
+const std = @import("std");
+const top = @This();
