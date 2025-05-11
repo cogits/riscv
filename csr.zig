@@ -10,7 +10,7 @@ pub const csr = enum {
     medeleg,
     /// Machine Interrupt Delegation
     mideleg,
-    /// Machine Integerrupt Pending
+    /// Machine Interrupt Pending
     mip,
     /// Machine Interrupt Enable
     mie,
@@ -169,7 +169,7 @@ pub const mstatus = packed struct(usize) {
 };
 
 /// Machine cause register
-pub const mcause = xcause;
+pub const mcause = cause;
 
 /// Supervisor Status Register
 pub const sstatus = packed struct(usize) {
@@ -295,20 +295,13 @@ const satp64 = packed struct(u64) {
 };
 
 /// Supervisor cause register
-pub const scause = xcause;
+pub const scause = cause;
 
-const xcause = packed struct(usize) {
-    code: XlenMinus(1) = 0,
+const cause = packed struct(usize) {
+    code: Code,
     interrupt: bool = false,
 
-    pub fn getCode(self: xcause) Code {
-        return if (self.interrupt)
-            .{ .interrupt = @enumFromInt(self.code) }
-        else
-            .{ .exception = @enumFromInt(self.code) };
-    }
-
-    pub const Code = union(enum) {
+    pub const Code = packed union {
         interrupt: Interrupt,
         exception: Exception,
     };
@@ -350,10 +343,12 @@ const xcause = packed struct(usize) {
         _,
     };
 
-    pub fn format(cause: xcause, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-        switch (cause.getCode()) {
-            // If the non-exhaustive enum value does not map to a name, it invokes safety-checked Undefined Behavior.
-            inline else => |value| try writer.print("{s}", .{@tagName(value)}),
+    pub fn format(self: cause, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        // If the non-exhaustive enum value does not map to a name, it invokes safety-checked Undefined Behavior.
+        if (self.interrupt) {
+            try writer.print("{s}", .{@tagName(self.code.interrupt)});
+        } else {
+            try writer.print("{s}", .{@tagName(self.code.exception)});
         }
     }
 };
