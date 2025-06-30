@@ -90,15 +90,15 @@ pub const csr = enum {
 
     /// Direct CSR operations using raw integer values.
     /// These bypass type safety and work directly with the underlying machine words.
-    pub const raw = struct {
-        pub fn read(comptime tag: csr) Int(tag) {
+    const raw = struct {
+        fn read(comptime tag: csr) Int(tag) {
             const name = @tagName(tag);
             return asm volatile ("csrr %[ret], " ++ name
                 : [ret] "=r" (-> Int(tag)),
             );
         }
 
-        pub fn write(comptime tag: csr, value: Int(tag)) void {
+        fn write(comptime tag: csr, value: Int(tag)) void {
             const name = @tagName(tag);
             asm volatile ("csrw " ++ name ++ ", %[value]"
                 :
@@ -106,7 +106,7 @@ pub const csr = enum {
             );
         }
 
-        pub fn set(comptime tag: csr, mask: Int(tag)) void {
+        fn set(comptime tag: csr, mask: Int(tag)) void {
             const name = @tagName(tag);
             asm volatile ("csrs " ++ name ++ ", %[mask]"
                 :
@@ -114,7 +114,7 @@ pub const csr = enum {
             );
         }
 
-        pub fn clear(comptime tag: csr, mask: Int(tag)) void {
+        fn clear(comptime tag: csr, mask: Int(tag)) void {
             const name = @tagName(tag);
             asm volatile ("csrc " ++ name ++ ", %[mask]"
                 :
@@ -123,10 +123,10 @@ pub const csr = enum {
         }
     };
 
-    /// Returns the type associated with a particular CSR.
-    /// This type is used for type-safe CSR operations.
+    /// Returns the type-safe wrapper for a CSR if defined, otherwise returns the raw integer type.
     pub fn Type(comptime tag: csr) type {
-        return @field(top, @tagName(tag));
+        const name = @tagName(tag);
+        return if (@hasDecl(top, name)) @field(top, name) else Int(tag);
     }
 
     /// Returns the appropriate unsigned integer type for raw CSR operations.
