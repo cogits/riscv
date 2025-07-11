@@ -2,7 +2,7 @@
     .name = .riscv,
     .version = "0.1.1",
     .fingerprint = 0xa21fc65ffadedeed,
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.15.0-dev.1022+5360968e0",
     .paths = .{
         "build.zig",
         "build.zig.zon",

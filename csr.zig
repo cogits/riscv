@@ -343,7 +343,7 @@ const cause = packed struct(usize) {
         _,
     };
 
-    pub fn format(self: cause, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: cause, writer: anytype) !void {
         // If the non-exhaustive enum value does not map to a name, it invokes safety-checked Undefined Behavior.
         if (self.interrupt) {
             try writer.print("{s}", .{@tagName(self.code.interrupt)});
