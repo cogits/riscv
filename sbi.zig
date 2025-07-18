@@ -10,7 +10,7 @@ pub const Extension = enum(i32) {
     _,
 
     /// Doing a SBI ecall
-    fn call(ext: Extension, fid: i32, args: [6]usize) !usize {
+    pub fn call(ext: Extension, fid: i32, args: [6]usize) !usize {
         const eid: i32 = @intFromEnum(ext);
         var err: isize = 0;
         var val: usize = 0;
@@ -30,19 +30,19 @@ pub const Extension = enum(i32) {
 
         return switch (err) {
             0 => val,
-            -1 => error.failed,
-            -2 => error.not_supported,
-            -3 => error.invalid_param,
-            -4 => error.denied,
-            -5 => error.invalid_address,
-            -6 => error.already_available,
-            -7 => error.already_started,
-            -8 => error.already_stopped,
-            -9 => error.no_shared_memory,
-            -10 => error.invalid_state,
-            -11 => error.bad_range,
-            -12 => error.timeout,
-            -13 => error.io,
+            -1 => error.Failed,
+            -2 => error.NotSupported,
+            -3 => error.InvalidParam,
+            -4 => error.Denied,
+            -5 => error.InvalidAddress,
+            -6 => error.AlreadyAvailable,
+            -7 => error.AlreadyStarted,
+            -8 => error.AlreadyStopped,
+            -9 => error.NoSharedMemory,
+            -10 => error.InvalidState,
+            -11 => error.BadRange,
+            -12 => error.Timeout,
+            -13 => error.Io,
             else => unreachable,
         };
     }
