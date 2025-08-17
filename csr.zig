@@ -88,17 +88,35 @@ pub const csr = enum {
         raw.clear(tag, @bitCast(register));
     }
 
+    /// Atomically swaps the value of the specified CSR.
+    /// Note: This overwrites the entire register contents.
+    pub fn swap(comptime tag: csr, register: Type(tag)) Type(tag) {
+        return @bitCast(raw.swap(tag, @bitCast(register)));
+    }
+
+    /// Atomically sets bits in the CSR and returns the original value.
+    /// Only bits set to 1 in the mask will be set (ORed) in the CSR.
+    pub fn readSet(comptime tag: csr, mask: Type(tag)) Type(tag) {
+        return @bitCast(raw.readSet(tag, @bitCast(mask)));
+    }
+
+    /// Atomically clears bits in the CSR and returns the original value.
+    /// Only bits set to 1 in the mask will be cleared in the CSR.
+    pub fn readClear(comptime tag: csr, mask: Type(tag)) Type(tag) {
+        return @bitCast(raw.readClear(tag, @bitCast(mask)));
+    }
+
     /// Direct CSR operations using raw integer values.
     /// These bypass type safety and work directly with the underlying machine words.
     const raw = struct {
-        fn read(comptime tag: csr) Int(tag) {
+        inline fn read(comptime tag: csr) Int(tag) {
             const name = @tagName(tag);
             return asm volatile ("csrr %[ret], " ++ name
                 : [ret] "=r" (-> Int(tag)),
             );
         }
 
-        fn write(comptime tag: csr, value: Int(tag)) void {
+        inline fn write(comptime tag: csr, value: Int(tag)) void {
             const name = @tagName(tag);
             asm volatile ("csrw " ++ name ++ ", %[value]"
                 :
@@ -106,7 +124,7 @@ pub const csr = enum {
             );
         }
 
-        fn set(comptime tag: csr, mask: Int(tag)) void {
+        inline fn set(comptime tag: csr, mask: Int(tag)) void {
             const name = @tagName(tag);
             asm volatile ("csrs " ++ name ++ ", %[mask]"
                 :
@@ -114,10 +132,34 @@ pub const csr = enum {
             );
         }
 
-        fn clear(comptime tag: csr, mask: Int(tag)) void {
+        inline fn clear(comptime tag: csr, mask: Int(tag)) void {
             const name = @tagName(tag);
             asm volatile ("csrc " ++ name ++ ", %[mask]"
                 :
+                : [mask] "r" (mask),
+            );
+        }
+
+        inline fn swap(comptime tag: csr, value: Int(tag)) Int(tag) {
+            const name = @tagName(tag);
+            return asm volatile ("csrrw %[ret], " ++ name ++ ", %[value]"
+                : [ret] "=r" (-> Int(tag)),
+                : [value] "r" (value),
+            );
+        }
+
+        inline fn readSet(comptime tag: csr, mask: Int(tag)) Int(tag) {
+            const name = @tagName(tag);
+            return asm volatile ("csrrs %[ret], " ++ name ++ ", %[mask]"
+                : [ret] "=r" (-> Int(tag)),
+                : [mask] "r" (mask),
+            );
+        }
+
+        inline fn readClear(comptime tag: csr, mask: Int(tag)) Int(tag) {
+            const name = @tagName(tag);
+            return asm volatile ("csrrc %[ret], " ++ name ++ ", %[mask]"
+                : [ret] "=r" (-> Int(tag)),
                 : [mask] "r" (mask),
             );
         }
