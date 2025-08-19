@@ -1,11 +1,15 @@
 //! supervisor binary interface
 pub const Extension = enum(i32) {
-    /// Debug Console Extension
-    debug = 0x4442_434E,
-    /// System Reset Extension
-    reset = 0x5352_5354,
+    /// Base Extension
+    base = 0x10,
     /// Timer Extension
     timer = 0x5449_4D45,
+    /// Hart State Management Extension
+    hsm = 0x48_534D,
+    /// System Reset Extension
+    reset = 0x5352_5354,
+    /// Debug Console Extension
+    debug = 0x4442_434E,
 
     _,
 
@@ -66,4 +70,13 @@ pub fn shutdown(
 ) noreturn {
     _ = Extension.reset.call(0, .{ @intFromEnum(@"type"), @intFromEnum(reason), 0, 0, 0, 0 }) catch unreachable;
     unreachable;
+}
+
+pub fn probeExtension(ext: Extension) bool {
+    const ret = Extension.base.call(3, .{ @intFromEnum(ext), 0, 0, 0, 0, 0 }) catch false;
+    return if (ret > 0) true else false;
+}
+
+pub fn hartStart(hart: usize, start_addr: usize, arg: usize) !void {
+    _ = try Extension.hsm.call(0, .{ hart, start_addr, arg, 0, 0, 0 });
 }
