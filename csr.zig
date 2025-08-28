@@ -1,91 +1,130 @@
 /// control and status register
-pub const csr = enum {
-    /// Hart ID
-    mhartid,
-    /// Machine Status
-    mstatus,
-    /// Machine Trap Vector Base Address
-    mtvec,
-    /// Machine Exception Delegation
-    medeleg,
-    /// Machine Interrupt Delegation
-    mideleg,
-    /// Machine Interrupt Pending
-    mip,
-    /// Machine Interrupt Enable
-    mie,
-    /// Machine Counter Enable
-    mcounteren,
-    /// Machine Scratch
-    mscratch,
-    /// Machine Exception Program Counter
-    mepc,
-    /// Machine Cause
-    mcause,
-    /// Machine Trap Value
-    mtval,
-    /// Machine Environment Configuration
-    menvcfg,
+pub const csr = enum(u12) {
     /// read-only shadow of the memory-mapped mtime register
-    time,
+    time = 0xC01,
+    /// Upper 32-bits of time, RV32 only
+    timeh = 0xC81,
+
+    /// Supervisor Status
+    sstatus = 0x100,
+    /// Supervisor Interrupt Enable
+    sie = 0x104,
+    /// Supervisor Trap Vector Base Address
+    stvec = 0x105,
+    /// Supervisor Couunter Enable
+    scounteren = 0x106,
+
+    /// Supervisor Environment Configuration
+    senvcfg = 0x10A,
+
+    /// Supervisor Scratch
+    sscratch = 0x140,
+    /// Supervisor Exception Program Counter
+    sepc = 0x141,
+    /// Supervisor Cause
+    scause = 0x142,
+    /// Supervisor Trap Value
+    stval = 0x143,
+    /// Supervisor Interrupt Pending
+    sip = 0x144,
+
+    /// Supervisor Address Translation and Protection
+    satp = 0x180,
+
+    /// Supervisor Timer
+    stimecmp = 0x14D,
+    /// Upper 32-bits of stimecmp, RV32 only
+    stimecmph = 0x15D,
+
+    /// Hart ID
+    mhartid = 0xF14,
+
+    /// Machine Status
+    mstatus = 0x300,
+    /// Machine Exception Delegation
+    medeleg = 0x302,
+    /// Machine Interrupt Delegation
+    mideleg = 0x303,
+    /// Machine Interrupt Enable
+    mie = 0x304,
+    /// Machine Trap Vector Base Address
+    mtvec = 0x305,
+    /// Machine Counter Enable
+    mcounteren = 0x306,
+    /// Additionnal machine status register, RV32 only
+    mstatush = 0x310,
+
+    /// Machine Scratch
+    mscratch = 0x340,
+    /// Machine Exception Program Counter
+    mepc = 0x341,
+    /// Machine Cause
+    mcause = 0x342,
+    /// Machine Trap Value
+    mtval = 0x343,
+    /// Machine Interrupt Pending
+    mip = 0x344,
+
+    /// Machine Environment Configuration
+    menvcfg = 0x30A,
+    /// Upper 32-bits of menvcfg, RV32 only
+    menvcfgh = 0x31A,
+
+    /// PMP configuration registers
+    pmpcfg0 = 0x3A0,
+    /// PMP address registers
+    pmpaddr0 = 0x3B0,
+
     /// Machine Timer
     mtime,
     /// Machine Timer Compare
     mtimecmp,
-    /// Machine Trap Return
-    mret,
-    /// PMP configuration registers
-    pmpcfg0,
-    /// PMP address registers
-    pmpaddr0,
-
-    /// Supervisor Status
-    sstatus,
-    /// Supervisor Trap Vector Base Address
-    stvec,
-    /// Supervisor Interrupt Pending
-    sip,
-    /// Supervisor Interrupt Enable
-    sie,
-    /// Supervisor Couunter Enable
-    scounteren,
-    /// Supervisor Scratch
-    sscratch,
-    /// Supervisor Exception Program Counter
-    sepc,
-    /// Supervisor Cause
-    scause,
-    /// Supervisor Trap Value
-    stval,
-    /// Supervisor Environment Configuration
-    senvcfg,
-    /// Supervisor Address Translation and Protection
-    satp,
-    /// Supervisor Timer
-    stimecmp,
 
     /// Reads the current value of the specified CSR.
     /// Returns the value as the register's corresponding type.
     pub fn read(comptime tag: csr) Type(tag) {
-        return @bitCast(raw.read(tag));
+        if (tag.hasHigh()) {
+            var vs: [2]u32 = undefined;
+            vs[0] = raw.read(tag);
+            vs[1] = raw.read(tag.high());
+            return @bitCast(vs);
+        } else {
+            return @bitCast(raw.read(tag));
+        }
     }
 
     /// Writes a new value to the specified CSR.
     /// Note: This overwrites the entire register contents.
     pub fn write(comptime tag: csr, register: Type(tag)) void {
-        raw.write(tag, @bitCast(register));
+        tag.modify(register, raw.write);
     }
 
     /// Sets (ORs) bits in the CSR specified by the mask.
     /// Only bits set to 1 in the mask will be set in the CSR.
     pub fn set(comptime tag: csr, register: Type(tag)) void {
-        raw.set(tag, @bitCast(register));
+        tag.modify(register, raw.set);
     }
 
     /// Clears bits in the CSR specified by the mask.
     /// Only bits set to 1 in the mask will be cleared in the CSR.
     pub fn clear(comptime tag: csr, register: Type(tag)) void {
-        raw.clear(tag, @bitCast(register));
+        tag.modify(register, raw.clear);
+    }
+
+    /// Applies a CSR operation function, handling 64-bit registers in RV32 by
+    /// splitting them into high/low 32-bit parts.
+    inline fn modify(
+        comptime tag: csr,
+        register: Type(tag),
+        func: fn (comptime csr, Int(tag)) callconv(.@"inline") void,
+    ) void {
+        if (tag.hasHigh()) {
+            const vs: [2]u32 = @bitCast(register);
+            func(tag, vs[0]);
+            func(tag.high(), vs[1]);
+        } else {
+            func(tag, @bitCast(register));
+        }
     }
 
     /// Atomically swaps the value of the specified CSR.
@@ -174,15 +213,27 @@ pub const csr = enum {
     /// Returns the appropriate unsigned integer type for raw CSR operations.
     /// Uses the bit size of the CSR's type if defined, otherwise falls back to usize.
     pub fn Int(comptime tag: csr) type {
-        return if (@hasDecl(top, @tagName(tag)))
+        return if (tag.hasHigh())
+            u32
+        else if (@hasDecl(top, @tagName(tag)))
             std.meta.Int(.unsigned, @bitSizeOf(Type(tag)))
         else
             usize;
     }
+
+    /// Checks if a CSR has a high-byte counterpart register in RV32 architecture.
+    inline fn hasHigh(comptime tag: csr) bool {
+        return is_rv32 and @hasField(csr, @tagName(tag) ++ "h");
+    }
+
+    /// Returns the high-byte counterpart CSR for a given CSR tag
+    inline fn high(comptime tag: csr) csr {
+        return @field(csr, @tagName(tag) ++ "h");
+    }
 };
 
 /// Machine Status Register
-pub const mstatus = packed struct(usize) {
+pub const mstatus = packed struct(u64) {
     @"0": u1 = 0,
     sie: bool = false,
 
@@ -197,7 +248,7 @@ pub const mstatus = packed struct(usize) {
     vs: u2 = 0,
     mpp: Mpp = .user,
 
-    _: XlenMinus(13) = 0,
+    _: u64Minus(13) = 0,
 
     pub const Mpp = enum(u2) {
         user = 0b00,
@@ -253,6 +304,9 @@ pub const mcounteren = packed struct(u32) {
     hpm: u29 = 0,
 };
 
+pub const stimecmp = u64;
+pub const time = u64;
+
 /// Machine-mode Interrupt Enable
 pub const mie = packed struct(usize) {
     @"0": u1 = 0,
@@ -307,7 +361,7 @@ pub const sie = packed struct(usize) {
 };
 
 /// Supervisor Address Translation and Protection Register
-pub const satp = if (@bitSizeOf(usize) == 32) satp32 else satp64;
+pub const satp = if (is_rv32) satp32 else satp64;
 
 const satp32 = packed struct(u32) {
     /// Physical Page Number
@@ -399,5 +453,10 @@ fn XlenMinus(n: u16) type {
     return std.meta.Int(.unsigned, @bitSizeOf(usize) - n);
 }
 
+fn u64Minus(n: u16) type {
+    return std.meta.Int(.unsigned, 64 - n);
+}
+
 const std = @import("std");
 const top = @This();
+const is_rv32 = @bitSizeOf(usize) == 32;
